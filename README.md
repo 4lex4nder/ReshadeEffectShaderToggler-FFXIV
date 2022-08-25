@@ -1,0 +1,2 @@
+# ReshadeEffectShaderToggler-FFXIV
+FFXIV specific ReshadeEffectShaderToggler configuration
