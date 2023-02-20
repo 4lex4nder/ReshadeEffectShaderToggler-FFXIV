@@ -33,7 +33,12 @@ namespace FFXIV {
 		float4 normal = tex2Dlod(NormalMap, float4(texcoord, 0, 0));
 		float4 decal = tex2Dlod(DecalNormalMap, float4(texcoord, 0, 0));
 		normal.xyz = lerp(normal.xyz, float3(0.5, 0.5, 1), normal.w == 1);
-		normal.xyz = lerp(normal.xyz, decal.xyz, decal.a > MAGIC_ALPHA);
+		
+		float3x3 matV = float3x3(FFXIV::matViewInv[0].xyz, FFXIV::matViewInv[1].xyz, FFXIV::matViewInv[2].xyz);
+		float3 cur_wsnormal = float4(mul(matV, normalize(0.5 - decal.xyz)), 1);
+		
+		//normal.xyz = lerp(normal.xyz, decal.xyz, decal.a  > MAGIC_ALPHA && abs(dot(cur_wsnormal, float3(-1, 0, 0))) > 0.006);
+		normal.xyz = lerp(normal.xyz, decal.xyz, decal.a  > MAGIC_ALPHA && dot(cur_wsnormal, float3(0, -1, 0)) < 0.99998);
 		return normal.xyz;
 	}
 	
