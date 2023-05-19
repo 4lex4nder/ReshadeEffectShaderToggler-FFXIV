@@ -36,14 +36,6 @@
 	#define XE_GTAO_RESOLUTION_SCALE 0		// 0: full; 1: half; 2: quarter ...
 #endif
 
-#ifndef XE_GTAO_IL
-	#define XE_GTAO_IL 0	// 0: disabled; 1: approximated GTAO multi bounce
-#endif
-
-#ifndef XE_GTAO_USE_VISIBILITY_BITMASK
-	#define XE_GTAO_USE_VISIBILITY_BITMASK 0	// 0: disabled; 1: use visibility bitmask
-#endif
-
 #undef XE_GTAO_SLICE_COUNT
 #undef XE_GTAO_SLICE_STEP_COUNT
 
@@ -56,9 +48,12 @@
 #elif XE_GTAO_QUALITY_LEVEL == 2
 	#define XE_GTAO_SLICE_COUNT 3
 	#define XE_GTAO_SLICE_STEP_COUNT 3
-#elif XE_GTAO_QUALITY_LEVEL >= 3
+#elif XE_GTAO_QUALITY_LEVEL == 3
 	#define XE_GTAO_SLICE_COUNT 9
 	#define XE_GTAO_SLICE_STEP_COUNT 3
+#elif XE_GTAO_QUALITY_LEVEL > 3
+	#define XE_GTAO_SLICE_COUNT 9
+	#define XE_GTAO_SLICE_STEP_COUNT 6
 #endif
 
 #if XE_GTAO_USE_VISIBILITY_BITMASK >= 0
@@ -80,6 +75,8 @@
 #define XE_GTAO_SCALED_BUFFER_RCP_HEIGHT (1.0 / XE_GTAO_SCALED_BUFFER_HEIGHT)
 #define XE_GTAO_SCALED_BUFFER_PIXEL_SIZE float2(XE_GTAO_SCALED_BUFFER_RCP_WIDTH, XE_GTAO_SCALED_BUFFER_RCP_HEIGHT)
 #define XE_GTAO_SCALED_BUFFER_SCREEN_SIZE float2(XE_GTAO_SCALED_BUFFER_WIDTH, XE_GTAO_SCALED_BUFFER_HEIGHT)
+
+#define IBL_PROBES 256
 
 //#endif
 
@@ -116,8 +113,16 @@ uniform float constFinalValuePower <
 	ui_type = "drag";
 	ui_min = 0.5; ui_max = 5.0;
 	ui_step = 0.01;
-	ui_label = "Final Value Power";
-	ui_tooltip = "Final Value Power";
+	ui_label = "Final AO Value Power";
+	ui_tooltip = "Final AO Value Power";
+> = 2.2;
+
+uniform float constFinalGIValuePower <
+	ui_type = "drag";
+	ui_min = 0.5; ui_max = 5.0;
+	ui_step = 0.01;
+	ui_label = "Final GI Value Power";
+	ui_tooltip = "Final GI Value Power";
 > = 2.2;
 
 uniform float constDepthMIPSamplingOffset <
@@ -136,13 +141,21 @@ uniform float constSampleDistributionPower <
 	ui_tooltip = "Sample Distribution Power";
 > = 2.0;
 
-uniform float constThinOccluderCompensation <
+uniform float constThinOccluderCompensationMin <
 	ui_type = "drag";
-	ui_min = 0.0; ui_max = 5.0;
+	ui_min = 0.01; ui_max = 5.0;
 	ui_step = 0.01;
-	ui_label = "Thin Occluder Compensation";
-	ui_tooltip = "Thin Occluder Compensation";
-> = 0.35;
+	ui_label = "Min Thin Occluder Compensation";
+	ui_tooltip = "Min Thin Occluder Compensation";
+> = 0.25;
+
+uniform float constThinOccluderCompensationMax <
+	ui_type = "drag";
+	ui_min = 0.01; ui_max = 5.0;
+	ui_step = 0.01;
+	ui_label = "Max Thin Occluder Compensation";
+	ui_tooltip = "Max Thin Occluder Compensation";
+> = 2.00;
 
 uniform bool LightAvoidance <
 	ui_type = "radio";
@@ -150,29 +163,33 @@ uniform bool LightAvoidance <
 	ui_tooltip = "LightAvoidance";
 > = 0;
 
-#if XE_GTAO_IL > 0
-//uniform float FFXIV_LIGHT_SOURCE_INTENSITY_MULTIPLIER <
-//    ui_label = "Shiny Multiplier";
-//     ui_tooltip = "Enhance light source intensity for GI calculation";
-//	 ui_type = "drag";
-//    ui_min = 0; ui_max = 1000.0;
-//    ui_step = 1.0;
-//> = 0;
-
-uniform float FFXIV_IL_INTENSITY <
-    ui_label = "Indirect Light Intensity";
-     ui_tooltip = "Indirect Light Intensity";
+uniform float FFXIV_LIGHT_SOURCE_INTENSITY_MULTIPLIER <
+    ui_label = "Albedo Shiny Multiplier";
+     ui_tooltip = "Enhance light source intensity for GI calculation";
 	 ui_type = "drag";
-    ui_min = 0; ui_max = 5.0;
-    ui_step = 0.1;
-> = 1.0;
-#endif
+    ui_min = 0; ui_max = 100.0;
+    ui_step = 1.0;
+> = 10;
 
-uniform bool Debug <
-	ui_type = "radio";
+uniform float FFXIV_NON_LIGHT_SOURCE_INTENSITY_MULTIPLIER <
+    ui_label = "Albedo Baseline Multiplier";
+     ui_tooltip = "Enhance light source intensity for GI calculation";
+	 ui_type = "drag";
+    ui_min = 0; ui_max = 20.0;
+    ui_step = 0.01;
+> = 2.0;
+
+uniform uint Debug <
+	ui_type = "slider";
 	ui_label = "Debug";
-	ui_tooltip = "Debug AO";
+	ui_min = 0;
+	ui_max = 2;
+	ui_step = 1;
+	ui_tooltip = "Debug";
 > = 0;
+
+
+//uniform float3 sunPos < source = "vec_SunPos"; > = float3(0, 0, 0);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 texture2D g_srcNDCDepth : DEPTH;
@@ -202,17 +219,17 @@ sampler2D g_sSrcWorkingDepth
 #endif
 };
 
-texture2D g_srcWorkingAOTerm
+texture2D g_srcWorkingAOTerm_GI
 {
 	Width = XE_GTAO_SCALED_BUFFER_WIDTH;
 	Height = XE_GTAO_SCALED_BUFFER_HEIGHT;
-	Format = R8;
+	Format = RGBA16F;
 };
 
-storage2D g_outWorkingAOTerm { Texture = g_srcWorkingAOTerm; };
+storage2D g_outWorkingAOTerm { Texture = g_srcWorkingAOTerm_GI; };
 sampler2D g_sSrcWorkinAOTerm
 {
-	Texture = g_srcWorkingAOTerm;
+	Texture = g_srcWorkingAOTerm_GI;
 
 #if XE_GTAO_RESOLUTION_SCALE <= 0
 	MagFilter = POINT;
@@ -221,31 +238,31 @@ sampler2D g_sSrcWorkinAOTerm
 #endif
 };
 
-texture2D g_srcFilteredOutput0
+texture2D g_srcFilteredOutput0_GI
 {
 	Width = BUFFER_WIDTH;
 	Height = BUFFER_HEIGHT;
-	Format = R8;
+	Format = RGBA16F;
 };
 
 sampler2D g_sSrcFilteredOutput0 {
-	Texture = g_srcFilteredOutput0;
+	Texture = g_srcFilteredOutput0_GI;
 
 	MagFilter = POINT;
 	MinFilter = POINT;
 	MipFilter = POINT;
 };
 
-texture2D g_srcFilteredOutput1
+texture2D g_srcFilteredOutput1_GI
 {
 	Width = BUFFER_WIDTH;
 	Height = BUFFER_HEIGHT;
-	Format = R8;
+	Format = RGBA16F;
 };
 
 sampler2D g_sSrcFilteredOutput1
 {
-	Texture = g_srcFilteredOutput1;
+	Texture = g_srcFilteredOutput1_GI;
 
 	MagFilter = POINT;
 	MinFilter = POINT;
@@ -266,6 +283,23 @@ sampler2D g_sSrcCurNomals
 	MagFilter = POINT;
 	MinFilter = POINT;
 	MipFilter = POINT;
+};
+
+texture2D g_srcEmissions
+{
+	Width = BUFFER_WIDTH;
+	Height = BUFFER_HEIGHT;
+	MipLevels = XE_GTAO_DEPTH_MIP_LEVELS;
+	Format = RGBA16F;
+};
+
+sampler2D g_sSrcEmissions
+{
+	Texture = g_srcEmissions;
+
+	//MagFilter = POINT;
+	//MinFilter = POINT;
+	//MipFilter = POINT;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -342,232 +376,35 @@ float XeGTAO_FastACos( float inX )
     return (inX >= 0) ? res : PI - res; 
 }
 
-void XeGTAO_OutputWorkingTerm( const uint2 pixCoord, float visibility )
+void XeGTAO_OutputWorkingTerm( const uint2 pixCoord, float visibility, float3 gi )
 {
     visibility = saturate( visibility );
 
-	tex2Dstore(g_outWorkingAOTerm, pixCoord, visibility);
+	tex2Dstore(g_outWorkingAOTerm, pixCoord, float4(gi, visibility));
 }
 
-// "Efficiently building a matrix to rotate one vector to another"
-// http://cs.brown.edu/research/pubs/pdfs/1999/Moller-1999-EBA.pdf / https://dl.acm.org/doi/10.1080/10867651.1999.10487509
-// (using https://github.com/assimp/assimp/blob/master/include/assimp/matrix3x3.inl#L275 as a code reference as it seems to be best)
-float3x3 XeGTAO_RotFromToMatrix( float3 from, float3 to )
+float3 LoadNormal(const uint2 id)
 {
-    const float e       = dot(from, to);
-    const float f       = abs(e); //(e < 0)? -e:e;
-
-    // WARNING: This has not been tested/worked through, especially not for 16bit floats; seems to work in our special use case (from is always {0, 0, -1}) but wouldn't use it in general
-    if( f > float( 1.0 - 0.0003 ) )
-        return float3x3( 1, 0, 0, 0, 1, 0, 0, 0, 1 );
-
-    const float3 v      = cross( from, to );
-    /* ... use this hand optimized version (9 mults less) */
-    const float h       = (1.0)/(1.0 + e);      /* optimization by Gottfried Chen */
-    const float hvx     = h * v.x;
-    const float hvz     = h * v.z;
-    const float hvxy    = hvx * v.y;
-    const float hvxz    = hvx * v.z;
-    const float hvyz    = hvz * v.y;
-
-    float3x3 mtx;
-    mtx[0][0] = e + hvx * v.x;
-    mtx[0][1] = hvxy - v.z;
-    mtx[0][2] = hvxz + v.y;
-
-    mtx[1][0] = hvxy + v.z;
-    mtx[1][1] = e + h * v.y * v.y;
-    mtx[1][2] = hvyz - v.x;
-
-    mtx[2][0] = hvxz - v.y;
-    mtx[2][1] = hvyz + v.x;
-    mtx[2][2] = e + hvz * v.z;
-
-    return mtx;
+	float2 texcoord = (float2(id) + 0.5) * XE_GTAO_SCALED_BUFFER_PIXEL_SIZE;
+	float3 normal = tex2Dlod(g_sSrcCurNomals, float4(texcoord, 0, 0)).rgb;
+	return normalize(normal - 0.5);
 }
 
-#if XE_GTAO_USE_VISIBILITY_BITMASK <= 0
-void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 viewspaceNormal )
-{                                                                       
-    float2 normalizedScreenPos = (pixCoord + 0.5.xx) * XE_GTAO_SCALED_BUFFER_PIXEL_SIZE;
-	
-    // viewspace Z at the center
-	float viewspaceZ  = tex2Dlod(g_sSrcWorkingDepth, float4(normalizedScreenPos, 0, 0)).x; 
-
-    // Move center pixel slightly towards camera to avoid imprecision artifacts due to depth buffer imprecision; offset depends on depth texture format used
-    viewspaceZ *= 0.99999;     // this is good for FP32 depth buffer
-
-    const float3 pixCenterPos   = XeGTAO_ComputeViewspacePosition( normalizedScreenPos, viewspaceZ );
-    const float3 viewVec      = normalize(-pixCenterPos);
-
-    const float effectRadius              = (float)constEffectRadius * (float)constRadiusMultiplier;
-    const float sampleDistributionPower   = (float)constSampleDistributionPower;
-    const float thinOccluderCompensation  = (float)constThinOccluderCompensation;
-    const float falloffRange              = (float)constEffectFalloffRange * effectRadius;
-
-    const float falloffFrom       = effectRadius * ((float)1-(float)constEffectFalloffRange);
-
-    // fadeout precompute optimisation
-    const float falloffMul        = (float)-1.0 / ( falloffRange );
-    const float falloffAdd        = falloffFrom / ( falloffRange ) + (float)1.0;
-
-    float visibility = 0;
-
-    // see "Algorithm 1" in https://www.activision.com/cdn/research/Practical_Real_Time_Strategies_for_Accurate_Indirect_Occlusion_NEW%20VERSION_COLOR.pdf
-    {
-        const float noiseSlice  = (float)localNoise.x;
-        const float noiseSample = (float)localNoise.y;
-
-        // quality settings / tweaks / hacks
-        const float pixelTooCloseThreshold  = 1.3;      // if the offset is under approx pixel size (pixelTooCloseThreshold), push it out to the minimum distance
-
-        // approx viewspace pixel size at pixCoord; approximation of NDCToViewspace( normalizedScreenPos.xy + ReShade::PixelSize.xy, pixCenterPos.z ).xy - pixCenterPos.xy;
-        const float2 pixelDirRBViewspaceSizeAtCenterZ = XeGTAO_ComputeViewspacePosition(normalizedScreenPos + XE_GTAO_SCALED_BUFFER_PIXEL_SIZE, viewspaceZ).xy - pixCenterPos.xy;
-
-        float screenspaceRadius   = effectRadius / (float)pixelDirRBViewspaceSizeAtCenterZ.x;
-
-        // fade out for small screen radii 
-        visibility += saturate((10 - screenspaceRadius)/100)*0.5;
-
-        // this is the min distance to start sampling from to avoid sampling from the center pixel (no useful data obtained from sampling center pixel)
-        const float minS = (float)pixelTooCloseThreshold / screenspaceRadius;
-		
-        //[unroll]
-        for( float slice = 0; slice < float(XE_GTAO_SLICE_COUNT); slice++ )
-        {
-            float sliceK = (slice+noiseSlice) / float(XE_GTAO_SLICE_COUNT);
-            // lines 5, 6 from the paper
-            float phi = sliceK * XE_GTAO_PI;
-            float cosPhi = cos(phi);
-            float sinPhi = sin(phi);
-            float2 omega = float2(cosPhi, -sinPhi);       //float2 on omega causes issues with big radii
-
-            // convert to screen units (pixels) for later use
-            omega *= screenspaceRadius;
-
-            // line 8 from the paper
-            const float3 directionVec = float3(cosPhi, sinPhi, 0);
-
-            // line 9 from the paper
-            const float3 orthoDirectionVec = directionVec - (dot(directionVec, viewVec) * viewVec);
-
-            // line 10 from the paper
-            //axisVec is orthogonal to directionVec and viewVec, used to define projectedNormal
-            const float3 axisVec = normalize( cross(orthoDirectionVec, viewVec) );
-
-            // alternative line 9 from the paper
-            // float3 orthoDirectionVec = cross( viewVec, axisVec );
-
-            // line 11 from the paper
-            float3 projectedNormalVec = viewspaceNormal - axisVec * dot(viewspaceNormal, axisVec);
-
-            // line 13 from the paper
-            float signNorm = (float)sign( dot( orthoDirectionVec, projectedNormalVec ) );
-
-            // line 14 from the paper
-            float projectedNormalVecLength = length(projectedNormalVec);
-            float cosNorm = (float)saturate(dot(projectedNormalVec, viewVec) / projectedNormalVecLength);
-
-            // line 15 from the paper
-            float n = signNorm * XeGTAO_FastACos(cosNorm);
-
-            // this is a lower weight target; not using -1 as in the original paper because it is under horizon, so a 'weight' has different meaning based on the normal
-            const float lowHorizonCos0  = cos(n+XE_GTAO_PI_HALF);
-            const float lowHorizonCos1  = cos(n-XE_GTAO_PI_HALF);
-
-            // lines 17, 18 from the paper, manually unrolled the 'side' loop
-            float horizonCos0           = lowHorizonCos0; //-1;
-            float horizonCos1           = lowHorizonCos1; //-1;
-
-            [unroll]
-            for( float step = 0; step < float(XE_GTAO_SLICE_STEP_COUNT); step++ )
-            {
-                // R1 sequence (http://extremelearning.com.au/unreasonable-effectiveness-of-quasirandom-sequences/)
-                const float stepBaseNoise = float(slice + step * float(XE_GTAO_SLICE_STEP_COUNT)) * 0.6180339887498948482; // <- this should unroll
-                float stepNoise = frac(noiseSample + stepBaseNoise);
-
-                // approx line 20 from the paper, with added noise
-                float s = (step+stepNoise) / float(XE_GTAO_SLICE_STEP_COUNT); // + (float2)1e-6f);
-
-                // additional distribution modifier
-                s       = (float)pow( s, (float)sampleDistributionPower );
-
-                // avoid sampling center pixel
-                s       += minS;
-
-                // approx lines 21-22 from the paper, unrolled
-                float2 sampleOffset = s * omega;
-
-                float sampleOffsetLength = length( sampleOffset );
-
-                // note: when sampling, using point_point_point or point_point_linear sampler works, but linear_linear_linear will cause unwanted interpolation between neighbouring depth values on the same MIP level!
-                const float mipLevel    = (float)clamp( log2( sampleOffsetLength ) - constDepthMIPSamplingOffset, 0, XE_GTAO_DEPTH_MIP_LEVELS );
-
-                // Snap to pixel center (more correct direction math, avoids artifacts due to sampling pos not matching depth texel center - messes up slope - but adds other 
-                // artifacts due to them being pushed off the slice). Also use full precision for high res cases.
-                sampleOffset = round(sampleOffset) * (float2)XE_GTAO_SCALED_BUFFER_PIXEL_SIZE;
-
-                float2 sampleScreenPos0 = normalizedScreenPos + sampleOffset;
-                //float  SZ0 = sourceViewspaceDepth.SampleLevel( depthSampler, sampleScreenPos0, mipLevel ).x;
-				float  SZ0 = tex2Dlod( g_sSrcWorkingDepth, float4(sampleScreenPos0, 0, mipLevel) ).x;
-                float3 samplePos0 = XeGTAO_ComputeViewspacePosition( sampleScreenPos0, SZ0 );
-
-                float2 sampleScreenPos1 = normalizedScreenPos - sampleOffset;
-                //float  SZ1 = sourceViewspaceDepth.SampleLevel( depthSampler, sampleScreenPos1, mipLevel ).x;
-				float  SZ1 = tex2Dlod( g_sSrcWorkingDepth, float4(sampleScreenPos1, 0, mipLevel) ).x;
-                float3 samplePos1 = XeGTAO_ComputeViewspacePosition( sampleScreenPos1, SZ1 );
-
-                float3 sampleDelta0     = (samplePos0 - float3(pixCenterPos)); // using float for sampleDelta causes precision issues
-                float3 sampleDelta1     = (samplePos1 - float3(pixCenterPos)); // using float for sampleDelta causes precision issues
-                float sampleDist0     = (float)length( sampleDelta0 );
-                float sampleDist1     = (float)length( sampleDelta1 );
-
-                // approx lines 23, 24 from the paper, unrolled
-                float3 sampleHorizonVec0 = (float3)(sampleDelta0 / sampleDist0);
-                float3 sampleHorizonVec1 = (float3)(sampleDelta1 / sampleDist1);
-
-                // this is our own thickness heuristic that relies on sooner discarding samples behind the center
-                float falloffBase0    = length( float3(sampleDelta0.x, sampleDelta0.y, sampleDelta0.z * (1+thinOccluderCompensation) ) );
-                float falloffBase1    = length( float3(sampleDelta1.x, sampleDelta1.y, sampleDelta1.z * (1+thinOccluderCompensation) ) );
-                float weight0         = saturate( falloffBase0 * falloffMul + falloffAdd );
-                float weight1         = saturate( falloffBase1 * falloffMul + falloffAdd );
-
-                // sample horizon cos
-                float shc0 = (float)dot(sampleHorizonVec0, viewVec);
-                float shc1 = (float)dot(sampleHorizonVec1, viewVec);
-
-                // discard unwanted samples
-                shc0 = lerp( lowHorizonCos0, shc0, weight0 ); // this would be more correct but too expensive: cos(lerp( acos(lowHorizonCos0), acos(shc0), weight0 ));
-                shc1 = lerp( lowHorizonCos1, shc1, weight1 ); // this would be more correct but too expensive: cos(lerp( acos(lowHorizonCos1), acos(shc1), weight1 ));
-
-                // thickness heuristic - see "4.3 Implementation details, Height-field assumption considerations"
-                horizonCos0 = max( horizonCos0, shc0 );
-                horizonCos1 = max( horizonCos1, shc1 );
-            }
-
-#if 1       // I can't figure out the slight overdarkening on high slopes, so I'm adding this fudge - in the training set, 0.05 is close (PSNR 21.34) to disabled (PSNR 21.45)
-            projectedNormalVecLength = lerp( projectedNormalVecLength, 1, 0.05 );
-#endif
-
-            // line ~27, unrolled
-            float h0 = -XeGTAO_FastACos((float)horizonCos1);
-            float h1 = XeGTAO_FastACos((float)horizonCos0);
-
-            float iarc0 = ((float)cosNorm + (float)2 * (float)h0 * (float)sin(n)-(float)cos((float)2 * (float)h0-n))/(float)4;
-            float iarc1 = ((float)cosNorm + (float)2 * (float)h1 * (float)sin(n)-(float)cos((float)2 * (float)h1-n))/(float)4;
-            float localVisibility = (float)projectedNormalVecLength * (float)(iarc0+iarc1);
-            visibility += localVisibility;
-
-        }
-		
-        visibility /= float(XE_GTAO_SLICE_COUNT);
-        visibility = pow( visibility, constFinalValuePower );
-        visibility = max( 0.03, visibility ); // disallow total occlusion (which wouldn't make any sense anyhow since pixel is visible but also helps with packing bent normals)
-    }
-
-    XeGTAO_OutputWorkingTerm( pixCoord, visibility );
+float3 LoadNormalUV(const float2 texcoord)
+{
+	float3 normal = tex2Dlod(g_sSrcCurNomals, float4(texcoord, 0, 0)).rgb;
+	return normalize(normal - 0.5);
 }
-#else
+
+float3 LoadNormalWS(const float2 texcoord)
+{
+	float3 normal = tex2Dlod(g_sSrcCurNomals, float4(texcoord, 0, 0)).rgb;
+	float3x3 matV = float3x3(FFXIV::matViewInv[0].xyz * float3(1, -1, -1), FFXIV::matViewInv[1].xyz * float3(1, -1, -1), FFXIV::matViewInv[2].xyz * float3(1, -1, -1));
+	normal = mul(matV, normalize(normal - 0.5));
+	//normal.gb = 1.0 - normal.gb;
+	return normal;
+}
+
 void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 viewspaceNormal )
 {                                                                       
     float2 normalizedScreenPos = (pixCoord + 0.5.xx) * XE_GTAO_SCALED_BUFFER_PIXEL_SIZE;
@@ -582,6 +419,7 @@ void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 view
     const float3 viewVec      = normalize(-pixCenterPos);
 
     float visibility = 0;
+	float3 gi = 0;
 	
     // see "Algorithm 1" in https://www.activision.com/cdn/research/Practical_Real_Time_Strategies_for_Accurate_Indirect_Occlusion_NEW%20VERSION_COLOR.pdf
     {
@@ -601,7 +439,7 @@ void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 view
 
         // this is the min distance to start sampling from to avoid sampling from the center pixel (no useful data obtained from sampling center pixel)
         const float minS = (float)pixelTooCloseThreshold / screenspaceRadius;
-		const float thinness = (pixCenterPos.z / FFXIV::z_far());
+		const float thinnessScale = (pixCenterPos.z / FFXIV::z_far());
 		
         [unroll]
         for( float slice = 0; slice < float(XE_GTAO_SLICE_COUNT); slice++ )
@@ -635,7 +473,7 @@ void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 view
                 s       += minS;
 
 				// approx lines 21-22 from the paper, unrolled
-				float2 sampleOffset = s * omega; //* (1.0 + pixCenterPos.z / FFXIV::z_far() * 200.0);
+				float2 sampleOffset = s * omega; //* (1.0 -pixCenterPos.z / FFXIV::z_far() * constRadiusMultiplier);
 				
 				float sampleOffsetLength = length( sampleOffset );
 	
@@ -647,17 +485,28 @@ void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 view
 				float SZ0 = tex2Dlod( g_sSrcWorkingDepth, float4(normalizedScreenPos + sampleOffset, 0, mipLevel) ).x;
 				float SZ1 = tex2Dlod( g_sSrcWorkingDepth, float4(normalizedScreenPos - sampleOffset, 0, mipLevel) ).x;
 				
+				float3 SC0 = tex2Dlod( g_sSrcEmissions, float4(normalizedScreenPos + sampleOffset, 0, 0) ).rgb;
+				float3 SC1 = tex2Dlod( g_sSrcEmissions, float4(normalizedScreenPos - sampleOffset, 0, 0) ).rgb;
+				
+				float3 SN0 = LoadNormalUV(normalizedScreenPos + sampleOffset);
+				float3 SN1 = LoadNormalUV(normalizedScreenPos - sampleOffset);
+				
 				float3 sf0 = XeGTAO_ComputeViewspacePosition( normalizedScreenPos + sampleOffset, SZ0 );
 				float3 sf1 = XeGTAO_ComputeViewspacePosition( normalizedScreenPos - sampleOffset, SZ1 );
 				
-				float3 sb0 = sf0 - viewVec * constThinOccluderCompensation;
-				float3 sb1 = sf1 - viewVec * constThinOccluderCompensation;
+				float3 sb0 = sf0 - viewVec * (constThinOccluderCompensationMin + thinnessScale * constThinOccluderCompensationMax);
+				float3 sb1 = sf1 - viewVec * (constThinOccluderCompensationMin + thinnessScale * constThinOccluderCompensationMax);
 				
-				float phi_f0 = XeGTAO_FastACos(dot(normalize(sf0 - pixCenterPos), viewspaceNormal));
-				float phi_b0 = XeGTAO_FastACos(dot(normalize(sb0 - pixCenterPos), viewspaceNormal));
+				float3 SLF0 = normalize(sf0 - pixCenterPos);
+				float3 SLF1 = normalize(sf1 - pixCenterPos);
+				float3 SLB0 = normalize(sb0 - pixCenterPos);
+				float3 SLB1 = normalize(sb1 - pixCenterPos);
 				
-				float phi_f1 = XeGTAO_FastACos(dot(normalize(sf1 - pixCenterPos), viewspaceNormal));
-				float phi_b1 = XeGTAO_FastACos(dot(normalize(sb1 - pixCenterPos), viewspaceNormal));
+				float phi_f0 = XeGTAO_FastACos(dot(SLF0, viewspaceNormal));
+				float phi_b0 = XeGTAO_FastACos(dot(SLB0, viewspaceNormal));
+				
+				float phi_f1 = XeGTAO_FastACos(dot(SLF1, viewspaceNormal));
+				float phi_b1 = XeGTAO_FastACos(dot(SLB1, viewspaceNormal));
 
 				float2 min_max0 = float2(min(phi_f0, phi_b0), max(phi_f0, phi_b0));
 				float2 min_max1 = float2(min(phi_f1, phi_b1), max(phi_f1, phi_b1));
@@ -665,11 +514,33 @@ void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 view
 				min_max0 = clamp(min_max0, 0, XE_GTAO_PI_HALF);
 				min_max1 = clamp(min_max1, 0, XE_GTAO_PI_HALF);
 				
-				uint2 a_b0 = uint2(min_max0.x / XE_GTAO_PI * XE_GTAO_BITMASK_NUM_BITS, (min_max0.y - min_max0.x) / XE_GTAO_PI * XE_GTAO_BITMASK_NUM_BITS);
+				uint2 a_b0 = uint2((min_max0.x )/ XE_GTAO_PI * XE_GTAO_BITMASK_NUM_BITS, (min_max0.y - min_max0.x) / XE_GTAO_PI * XE_GTAO_BITMASK_NUM_BITS);
 				uint2 a_b1 = uint2((min_max1.x + XE_GTAO_PI_HALF) / XE_GTAO_PI * XE_GTAO_BITMASK_NUM_BITS, (min_max1.y - min_max1.x) / XE_GTAO_PI * XE_GTAO_BITMASK_NUM_BITS);
+
+				uint bj0 = ((1 << a_b0.y) - 1) << a_b0.x;
+				uint bj1 = ((1 << a_b1.y) - 1) << a_b1.x;
 				
-				bi |= ((1 << a_b0.y) - 1) << a_b0.x;
-				bi |= ((1 << a_b1.y) - 1) << a_b1.x;
+				float4 gi_factors = float4(
+					dot(viewspaceNormal, SLF0) * (dot(SN0, -SLF0)),
+					dot(viewspaceNormal, SLF1) * (dot(SN1, SLF1)),
+					dot(viewspaceNormal, SLB0) * (dot(SN0, -SLB0)),
+					dot(viewspaceNormal, SLB1) * (dot(SN1, SLB1))
+				);
+				
+				if(gi_factors.x > 0)
+					gi += (float(countbits(bj0 & ~bi)) / XE_GTAO_BITMASK_NUM_BITS) * SC0 * (gi_factors.x);
+				
+				if(gi_factors.y > 0)
+					gi += (float(countbits(bj1 & ~bi)) / XE_GTAO_BITMASK_NUM_BITS) * SC1 * (gi_factors.y);
+				
+				if(gi_factors.z > 0)
+					gi += (float(countbits(bj0 & ~bi)) / XE_GTAO_BITMASK_NUM_BITS) * SC0 * (gi_factors.z);
+				
+				if(gi_factors.w > 0)
+					gi += (float(countbits(bj1 & ~bi)) / XE_GTAO_BITMASK_NUM_BITS) * SC1 * (gi_factors.w);
+				
+				bi |= bj0;
+				bi |= bj1;
             }
 			
 			visibility += 1.0 - countbits(bi) / XE_GTAO_BITMASK_NUM_BITS;
@@ -678,11 +549,13 @@ void XeGTAO_MainPass( const uint2 pixCoord, const float2 localNoise, float3 view
         visibility /= float(XE_GTAO_SLICE_COUNT);
         visibility = pow( visibility, constFinalValuePower );
         visibility = max( 0.03, visibility ); // disallow total occlusion (which wouldn't make any sense anyhow since pixel is visible but also helps with packing bent normals)
+		
+		gi /= float(XE_GTAO_SLICE_COUNT);
+		gi *= constFinalGIValuePower;
     }
 
-    XeGTAO_OutputWorkingTerm( pixCoord, visibility );
+    XeGTAO_OutputWorkingTerm( pixCoord, visibility, gi );
 }
-#endif
 
 // weighted average depth filter
 float XeGTAO_DepthMIPFilter( float depth0, float depth1, float depth2, float depth3 )
@@ -789,54 +662,38 @@ void XeGTAO_PrefilterDepths16x16( uint2 dispatchThreadID /*: SV_DispatchThreadID
 #undef AOTermType
 #define AOTermType float
 
-float3 LoadNormal(const uint2 id)
-{
-	float2 texcoord = (float2(id) + 0.5) * XE_GTAO_SCALED_BUFFER_PIXEL_SIZE;
-	float3 normal = tex2Dlod(g_sSrcCurNomals, float4(texcoord, 0, 0)).rgb;
-	return normalize(normal - 0.5);
-}
-
-float3 LoadNormalUV(const float2 texcoord)
-{
-	float3 normal = tex2Dlod(g_sSrcCurNomals, float4(texcoord, 0, 0)).rgb;
-	return normalize(normal - 0.5);
-}
-
 float4 XeGTAO_PSAtrous( const float2 viewcoord, const float stepwidth, sampler visibilitySampler )
 {
 	static const float2 offset[9] = {float2(-1.0, -1.0), float2(0.0, -1.0), float2(1.0, -1.0), float2(-1.0, 0.0), float2(0.0, 0.0), float2(1.0, 0.0), float2(-1.0, 1.0), float2(0.0, 1.0), float2(1.0, 1.0)};
     static const float kernel[9] = {1.0f/16.0f, 3.0f/32.0f, 1.0f/16.0f, 3.0f/32.0f, 9.0f/64.0f, 3.0f/32.0f, 1.0f/16.0f, 3.0f/32.0f, 1.0f/16.0f};
     
-    float sum = 0.0;
+    float4 sum = 0.0;
     float cum_w = 0.0;
 	
     float c_phi = 1.0;
     float n_phi = 0.01;
-    //float p_phi = 0.5;
+    //float p_phi = 0.1;
 	
 	float2 uv = viewcoord; //+ ReShade::PixelSize / 2;
     
 	//float depth = tex2Dlod(ReShade::DepthBuffer, float4(uv, 0, 0)).r;
-	float cval = tex2Dlod(visibilitySampler, float4(uv, 0, 0)).r;
+	//float4 cval = tex2Dlod(visibilitySampler, float4(uv, 0, 0)).rgba;
 	float3 nval = LoadNormalUV(uv);
     //float3 pval = normalize(FFXIV::get_world_position_from_uv(uv, depth));
-	
-	[unroll]
+    
+	[loop]
     for(int i=0; i<9; i++)
     {
         float2 uvOffset = uv + offset[i] * stepwidth * ReShade::PixelSize;
-		//float kernel = exp(-(offset[i].x * offset[i].x + offset[i].y * offset[i].y) / (rho * rho)); 
-		
-		//float depthtmp = tex2Dlod(ReShade::DepthBuffer, float4(uvOffset, 0, 0)).r;
         
-        float ctmp = tex2Dlod(visibilitySampler, float4(uvOffset, 0, 0)).r;
-        float t = cval - ctmp;
-        float dist2 = t*t;//dot(t,t);
-        float c_w = min(exp(-(dist2)/c_phi), 1.0);
+        float4 ctmp = tex2Dlod(visibilitySampler, float4(uvOffset, 0, 0)).rgba;
+        //float t = cval.a - ctmp.a;
+        //float dist2 = t * t;//dot(t,t);
+        //float c_w = min(exp(-(dist2)/c_phi), 1.0);
         
         float3 ntmp = LoadNormalUV(uvOffset);
         float3 tt = nval - ntmp;
-        dist2 = max(dot(tt,tt) / (stepwidth * stepwidth), 0.0);
+        float dist2 = max(dot(tt,tt) / (stepwidth * stepwidth), 0.0);
         float n_w = min(exp(-(dist2)/n_phi), 1.0);
         
         //float3 ptmp = normalize(FFXIV::get_world_position_from_uv(uvOffset, depthtmp));
@@ -844,14 +701,15 @@ float4 XeGTAO_PSAtrous( const float2 viewcoord, const float stepwidth, sampler v
         //dist2 = dot(tt,tt);
         //float p_w = min(exp(-(dist2)/p_phi), 1.0);
         
-        float weight = c_w * n_w; //* p_w;
+        float weight = n_w; //* p_w;
+		//float weight = n_w * p_w;
         sum += ctmp * weight * kernel[i];
         cum_w += weight * kernel[i];
     }
     
-    float res = sum / cum_w;
+    float4 res = sum / cum_w;
 	
-	return float4(res, 0, 0, 1.0);
+	return res;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -866,15 +724,14 @@ void CSGTAO(uint3 id : SV_DispatchThreadID, uint3 tid : SV_GroupThreadID, uint2 
 	XeGTAO_MainPass( id.xy, SpatioTemporalNoise(id.xy), LoadNormal(id.xy) );
 }
 
-#if XE_GTAO_IL > 0
 float3 reinhard(float3 v)
 {
-    return v / (1.0 + v);
+    return v / (v + 1.15);     
 }
 
 float3 raushard(float3 v)
 {
-    return -v / (v - 1.0);
+    return v / (1.15 - v);
 }
 
 float3 GTAOMultiBounce(float visibility, float3 albedo)
@@ -885,7 +742,6 @@ float3 GTAOMultiBounce(float visibility, float3 albedo)
 	
 	return max(visibility, ((visibility * a + b) * visibility + c) * visibility);
 }
-#endif
 
 void PS_Atrous0(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float4 output: SV_Target0)
 {
@@ -902,37 +758,39 @@ void PS_Atrous2(in float4 position : SV_Position, in float2 texcoord : TEXCOORD,
 	output = XeGTAO_PSAtrous(texcoord, 1.0, g_sSrcFilteredOutput1);
 }
 
+void PS_Emissions(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float4 output: SV_Target0)
+{
+	float4 color = tex2D(ReShade::BackBuffer, texcoord).rgba;
+	output = float4((color.rgb * (FFXIV_NON_LIGHT_SOURCE_INTENSITY_MULTIPLIER + color.a * FFXIV_LIGHT_SOURCE_INTENSITY_MULTIPLIER)), 1.0);
+}
+
 void PS_CurGBuf(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float4 normals : SV_Target0)
 {
 	float3 normal = FFXIV::get_normal(texcoord);
-#if XE_GTAO_USE_VISIBILITY_BITMASK <= 0
-	normal.b = 1.0 - normal.b;
-#else
 	normal.gb = 1.0 - normal.gb;
-#endif
+	//float3x3 matV = float3x3(FFXIV::matViewInv[0].xyz * float3(1, -1, -1), FFXIV::matViewInv[1].xyz * float3(1, -1, -1), FFXIV::matViewInv[2].xyz * float3(1, -1, -1));
+	//normal = mul(matV, normalize(normal - 0.5));
+	//
+	////normal = normal * 0.5 + 0.5;
+	//normal += 0.5;
+	//normal.gb = 1.0 - normal.gb;
+	//normal = normalize(normal);
+	
 	normals = float4(normal, 1.0);
 }
 
 void PS_ApplyAO(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, in float4 orgColor, in bool avoidLights, out float4 output : SV_Target0)
 {
-	#if XE_GTAO_IL == 0
-	float aoTerm = saturate(tex2D(g_sSrcFilteredOutput0, texcoord).r * (1.0 + orgColor.a * avoidLights));
+	float4 term = tex2D(g_sSrcFilteredOutput0, texcoord).rgba;
+	orgColor.rgb += term.rgb; //* term.a * (1.0 + orgColor.a * avoidLights);
+	orgColor.rgb *= term.a * (1.0 + orgColor.a * avoidLights);
 	
-	orgColor.rgb *= aoTerm;
-	
-	output = Debug ? float4((aoTerm).rrr, orgColor.a) : float4(orgColor);
-	#else
-	float aoTerm = tex2D(g_sSrcFilteredOutput0, texcoord).r;
-	
-	float3 albedo = float3(orgColor.rgb * (1.0 + orgColor.a * 0/*FFXIV_LIGHT_SOURCE_INTENSITY_MULTIPLIER*/));
-	albedo.rgb = reinhard(albedo.rgb) * FFXIV_IL_INTENSITY;
-	
-	float3 coloredAO = GTAOMultiBounce(aoTerm, albedo) * (1.0 + orgColor.a * avoidLights);
-	
-	orgColor.rgb *= coloredAO;
-	
-	output = Debug ? float4((coloredAO).rgb, orgColor.a) : float4(orgColor);
-	#endif
+	if(Debug == 0)
+		output = orgColor;
+	else if (Debug == 1)
+		output = float4(term.rgb, orgColor.a);
+	else
+		output = float4((term).aaa, orgColor.a);
 }
 
 void PS_Out(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float4 output : SV_Target0)
@@ -964,7 +822,7 @@ void PS_Out_Decals(in float4 position : SV_Position, in float2 texcoord : TEXCOO
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-technique FFXIV_XeGTAO
+technique FFXIV_XeGTAO_GI
 {
 pass
 {
@@ -972,6 +830,13 @@ pass
 	DispatchSizeX = ((BUFFER_WIDTH) + ((16) - 1)) / (16);
 	DispatchSizeY = ((BUFFER_HEIGHT) + ((16) - 1)) / (16);
 	GenerateMipMaps = false;
+}
+
+pass
+{
+	VertexShader = PostProcessVS;
+	PixelShader  = PS_Emissions;
+	RenderTarget0 = g_srcEmissions;
 }
 
 pass
@@ -992,21 +857,21 @@ pass
 {
 	VertexShader = PostProcessVS;
 	PixelShader  = PS_Atrous0;
-	RenderTarget0 = g_srcFilteredOutput0;
+	RenderTarget0 = g_srcFilteredOutput0_GI;
 }
 
 pass
 {
 	VertexShader = PostProcessVS;
 	PixelShader  = PS_Atrous1;
-	RenderTarget0 = g_srcFilteredOutput1;
+	RenderTarget0 = g_srcFilteredOutput1_GI;
 }
 
 pass
 {
 	VertexShader = PostProcessVS;
 	PixelShader  = PS_Atrous2;
-	RenderTarget0 = g_srcFilteredOutput0;
+	RenderTarget0 = g_srcFilteredOutput0_GI;
 }
 
 pass
@@ -1016,7 +881,7 @@ pass
 }
 }
 
-technique FFXIV_XeGTAO_Decals
+technique FFXIV_XeGTAO_GI_Decals
 {
 pass
 {

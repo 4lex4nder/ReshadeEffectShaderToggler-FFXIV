@@ -1,7 +1,8 @@
 #pragma once
 
 namespace FFXIV {
-    static const float MAGIC_WATER_ALPHA = 0.050980390;
+    //static const float MAGIC_WATER_ALPHA = 0.050980390; //for SRGB shim
+	static const float MAGIC_WATER_ALPHA = 0.05195697; //for FFXIV shim
     static const float MAGIC_WATER_ALPHA2 = MAGIC_WATER_ALPHA + 0.2;
     static const float MAGIC_ALPHA = MAGIC_WATER_ALPHA - 0.000000002;
 	static const float DECAL_BACKGROUND = 0.00392156863;
@@ -53,6 +54,7 @@ namespace FFXIV {
     // Annoying, but didn't see correct z_far in the constant buffers (and it differs between over and inner world)
     float z_far()
     {
+        //return far_Z;
 		return (Z_NEAR * (-matProj[2][2])) * rcp((-matProj[2][2]) - 1);
     }
     
@@ -85,6 +87,13 @@ namespace FFXIV {
         res /= res.w;
         
         return res.xyz;
+    }
+	
+	float3 get_position_from_world(float3 pos)
+    {
+        float4 uv_pos = mul(matView, float4(pos, 1));
+        uv_pos /= uv_pos.w;
+        return uv_pos.xyz;
     }
     
     float3 get_uv_from_position(float3 pos)
