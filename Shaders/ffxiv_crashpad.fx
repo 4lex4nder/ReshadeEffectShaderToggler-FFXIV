@@ -10,6 +10,8 @@ Compatibility by : MJ_Ehsan
 alex:
 - WS normals as features for ME and upscaling
 - Velocity as ME guidance and filter
+- Adjusted namespaces and texture names for iMMERSE compatibility
+- Encoded normal output (octahedron encoding: https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html) for iMMERSE effects
 =============================================================================*/
 
 /*=============================================================================
@@ -104,7 +106,7 @@ uniform float4x4 matPrevViewProj < source = "mat_PrevViewProj"; >;
 //smpG samplers are .r = Grayscale, g = depth
 //smgM samplers are .r = motion x, .g = motion y, .b = feature level, .a = loss;
 
-namespace FFXIV_MotionVectors_NEW{
+namespace FFXIV_Crashpad {
 
 #if WS_NORMAL_FEATURES == 0
 texture FeatureCurr          { Width = BUFFER_WIDTH;   Height = BUFFER_HEIGHT;   Format = RG16F; MipLevels = 8; };
@@ -114,30 +116,35 @@ texture FeatureCurr          { Width = BUFFER_WIDTH;   Height = BUFFER_HEIGHT;  
 texture FeaturePrev          { Width = BUFFER_WIDTH;   Height = BUFFER_HEIGHT;   Format = RGBA16F; MipLevels = 8; };
 #endif
 
-texture MotionTexCur7               { Width = BUFFER_WIDTH >> 7;   Height = BUFFER_HEIGHT >> 7;   Format = RGBA16F;  };
-texture MotionTexCur6               { Width = BUFFER_WIDTH >> 6;   Height = BUFFER_HEIGHT >> 6;   Format = RGBA16F;  };
-texture MotionTexCur5               { Width = BUFFER_WIDTH >> 5;   Height = BUFFER_HEIGHT >> 5;   Format = RGBA16F;  };
-texture MotionTexCur4               { Width = BUFFER_WIDTH >> 4;   Height = BUFFER_HEIGHT >> 4;   Format = RGBA16F;  };
-texture MotionTexCur3               { Width = BUFFER_WIDTH >> 3;   Height = BUFFER_HEIGHT >> 3;   Format = RGBA16F;  };
-texture MotionTexCur2               { Width = BUFFER_WIDTH >> 2;   Height = BUFFER_HEIGHT >> 2;   Format = RGBA16F;  };
-texture MotionTexCur1               { Width = BUFFER_WIDTH >> 1;   Height = BUFFER_HEIGHT >> 1;   Format = RGBA16F;  };
-texture MotionTexCur0               { Width = BUFFER_WIDTH >> 0;   Height = BUFFER_HEIGHT >> 0;   Format = RGBA16F;  };
+texture MotionTexCur7               { Width = BUFFER_WIDTH >> 7; Height = BUFFER_HEIGHT >> 7; Format = RGBA16F; };
+texture MotionTexCur6               { Width = BUFFER_WIDTH >> 6; Height = BUFFER_HEIGHT >> 6; Format = RGBA16F; };
+texture MotionTexCur5               { Width = BUFFER_WIDTH >> 5; Height = BUFFER_HEIGHT >> 5; Format = RGBA16F; };
+texture MotionTexCur4               { Width = BUFFER_WIDTH >> 4; Height = BUFFER_HEIGHT >> 4; Format = RGBA16F; };
+texture MotionTexCur3               { Width = BUFFER_WIDTH >> 3; Height = BUFFER_HEIGHT >> 3; Format = RGBA16F; };
+texture MotionTexCur2               { Width = BUFFER_WIDTH >> 2; Height = BUFFER_HEIGHT >> 2; Format = RGBA16F; };
+texture MotionTexCur1               { Width = BUFFER_WIDTH >> 1; Height = BUFFER_HEIGHT >> 1; Format = RGBA16F; };
+texture MotionTexCur0               { Width = BUFFER_WIDTH >> 0; Height = BUFFER_HEIGHT >> 0; Format = RGBA16F; };
 }
 
-sampler sFeatureCurr         { Texture = FFXIV_MotionVectors_NEW::FeatureCurr;  };
-sampler sFeaturePrev         { Texture = FFXIV_MotionVectors_NEW::FeaturePrev;   };
+sampler sFeatureCurr         { Texture = FFXIV_Crashpad::FeatureCurr; };
+sampler sFeaturePrev         { Texture = FFXIV_Crashpad::FeaturePrev; };
 
-texture texMotionVectors          { Width = BUFFER_WIDTH;   Height = BUFFER_HEIGHT;   Format = RG16F; };
-sampler sMotionVectorTex         { Texture = texMotionVectors;  };
+namespace Deferred {
+	texture MotionVectorsTex          { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RG16F; };
+	sampler sMotionVectorsTex         { Texture = MotionVectorsTex;  };
+	
+	texture NormalsTex              { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RG8; };
+	sampler sNormalsTex             { Texture = NormalsTex; };
+}
 
-sampler sMotionTexCur7              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur7;};
-sampler sMotionTexCur6              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur6;};
-sampler sMotionTexCur5              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur5;};
-sampler sMotionTexCur4              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur4;};
-sampler sMotionTexCur3              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur3;};
-sampler sMotionTexCur2              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur2;};
-sampler sMotionTexCur1              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur1;};
-sampler sMotionTexCur0              { Texture = FFXIV_MotionVectors_NEW::MotionTexCur0;};
+sampler sMotionTexCur7              { Texture = FFXIV_Crashpad::MotionTexCur7; };
+sampler sMotionTexCur6              { Texture = FFXIV_Crashpad::MotionTexCur6; };
+sampler sMotionTexCur5              { Texture = FFXIV_Crashpad::MotionTexCur5; };
+sampler sMotionTexCur4              { Texture = FFXIV_Crashpad::MotionTexCur4; };
+sampler sMotionTexCur3              { Texture = FFXIV_Crashpad::MotionTexCur3; };
+sampler sMotionTexCur2              { Texture = FFXIV_Crashpad::MotionTexCur2; };
+sampler sMotionTexCur1              { Texture = FFXIV_Crashpad::MotionTexCur1; };
+sampler sMotionTexCur0              { Texture = FFXIV_Crashpad::MotionTexCur0; };
 
 struct VSOUT
 {
@@ -554,6 +561,26 @@ void PSWriteColorAndDepth(in VSOUT i, out float4 o : SV_Target0)
 }
 #endif
 
+float2 OctWrap( float2 v )
+{
+    return ( 1.0 - abs( v.yx ) ) * ( v.xy >= 0.0 ? 1.0 : -1.0 );
+}
+
+float2 Encode( float3 n )
+{
+    n /= ( abs( n.x ) + abs( n.y ) + abs( n.z ) );
+    n.xy = n.z >= 0.0 ? n.xy : OctWrap( n.xy );
+    n.xy = n.xy * 0.5 + 0.5;
+    return n.xy;
+}
+
+void PSWriteNormals(in VSOUT i, out float2 o : SV_Target0)
+{
+	float3 normals = FFXIV::get_normal(i.uv);
+	normals.r = 1.0 - normals.r;
+	o = Encode(normalize(normals - 0.5));
+}
+
 float4 motion_estimation(in VSOUT i, sampler sMotionLow, sampler sFeatureCurr, sampler sFeaturePrev, int mip_gcurr, uint BLOCK_SIZE)
 {
 	float4 upscaledLowerLayer = 0;
@@ -582,8 +609,7 @@ float4 motion_estimation(in VSOUT i, sampler sMotionLow, sampler sFeatureCurr, s
 	return upscaledLowerLayer;
 }
 
-
-//void PSMotion7(in VSOUT i, out float4 o : SV_Target0){o = motion_estimation_velocity(i, sFeatureCurr, sFeaturePrev, 7);}
+//void PSMotion7(in VSOUT i, out float4 o : SV_Target0){o = CalcVelocityLayer(i, sFeatureCurr, sFeaturePrev, 7, 1);}
 void PSMotion6(in VSOUT i, out float4 o : SV_Target0){o = motion_estimation(i, sMotionTexCur7, sFeatureCurr, sFeaturePrev, 6, PRE_BLOCK_SIZE_2_TO_7 * 1);}
 void PSMotion5(in VSOUT i, out float4 o : SV_Target0){o = motion_estimation(i, sMotionTexCur6, sFeatureCurr, sFeaturePrev, 5, PRE_BLOCK_SIZE_2_TO_7 * 1);}
 void PSMotion4(in VSOUT i, out float4 o : SV_Target0){o = motion_estimation(i, sMotionTexCur5, sFeatureCurr, sFeaturePrev, 4, PRE_BLOCK_SIZE_2_TO_7 * 1);}
@@ -620,56 +646,60 @@ float4 motionToLgbtq(float2 motion)
 void PSOut(in VSOUT i, out float4 o : SV_Target0)
 {
 	if(!SHOWME) discard;
-	o = motionToLgbtq(tex2D(sMotionVectorTex, i.uv).xy);
+	o = motionToLgbtq(tex2D(Deferred::sMotionVectorsTex, i.uv).xy);
 }
 void PSWriteVectors(in VSOUT i, out float2 o : SV_Target0)
 {
 	o = tex2D(sMotionTexCur0, i.uv).xy;
 }
 
-
-
 /*=============================================================================
 	Techniques
 =============================================================================*/
 
-technique FFXIV_MotionVectors
+technique FFXIV_Crashpad
 {
     pass //update curr data RGB + depth
 	{
 		VertexShader = VS_Main;
 		PixelShader  = PSWriteColorAndDepth; 
-        RenderTarget = FFXIV_MotionVectors_NEW::FeatureCurr; 
+        RenderTarget = FFXIV_Crashpad::FeatureCurr; 
 
 	}
     //mipmaps are being created :)
-	//pass {VertexShader = VS_Main;PixelShader = PSMotion7;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur7;}
+	//pass {VertexShader = VS_Main;PixelShader = PSMotion7;RenderTarget = FFXIV_Crashpad::MotionTexCur7;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit6;RenderTarget = MotionTexCur6;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion6;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur6;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion6;RenderTarget = FFXIV_Crashpad::MotionTexCur6;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit5;RenderTarget = MotionTexCur5;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion5;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur5;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion5;RenderTarget = FFXIV_Crashpad::MotionTexCur5;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit4;RenderTarget = MotionTexCur4;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion4;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur4;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion4;RenderTarget = FFXIV_Crashpad::MotionTexCur4;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit3;RenderTarget = MotionTexCur3;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion3;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur3;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion3;RenderTarget = FFXIV_Crashpad::MotionTexCur3;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit2;RenderTarget = MotionTexCur2;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion2;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur2;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion2;RenderTarget = FFXIV_Crashpad::MotionTexCur2;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit1;RenderTarget = MotionTexCur1;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion1;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur1;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion1;RenderTarget = FFXIV_Crashpad::MotionTexCur1;}
 	//pass {VertexShader = VS_Main;PixelShader = PSMotionInit0;RenderTarget = MotionTexCur0;}
-    pass {VertexShader = VS_Main;PixelShader = PSMotion0;RenderTarget = FFXIV_MotionVectors_NEW::MotionTexCur0;}
+    pass {VertexShader = VS_Main;PixelShader = PSMotion0;RenderTarget = FFXIV_Crashpad::MotionTexCur0;}
 
     pass  
 	{
 		VertexShader = VS_Main;
 		PixelShader  = PSWriteColorAndDepth; 
-        RenderTarget0 = FFXIV_MotionVectors_NEW::FeaturePrev; 
+        RenderTarget0 = FFXIV_Crashpad::FeaturePrev; 
 	}
 	pass  
 	{
 		VertexShader = VS_Main;
 		PixelShader  = PSWriteVectors; 
-		RenderTarget = texMotionVectors;
+		RenderTarget = Deferred::MotionVectorsTex;
+	}
+	pass  
+	{
+		VertexShader = VS_Main;
+		PixelShader  = PSWriteNormals; 
+		RenderTarget = Deferred::NormalsTex;
 	}
 
     pass 
