@@ -563,7 +563,9 @@ void PSWriteColorAndDepth(in VSOUT i, out float4 o : SV_Target0)
 
 float2 OctWrap( float2 v )
 {
-    return ( 1.0 - abs( v.yx ) ) * ( v.xy >= 0.0 ? 1.0 : -1.0 );
+    //return ( 1.0 - abs( v.yx ) ) * ( v.xy >= 0.0 ? 1.0 : -1.0 );
+    return float2((1.0 - abs( v.y ) ) * ( v.x >= 0.0 ? 1.0 : -1.0),
+        (1.0 - abs( v.x ) ) * ( v.y >= 0.0 ? 1.0 : -1.0));
 }
 
 float2 Encode( float3 n )
@@ -578,7 +580,7 @@ void PSWriteNormals(in VSOUT i, out float2 o : SV_Target0)
 {
 	float3 normals = FFXIV::get_normal(i.uv);
 	normals.r = 1.0 - normals.r;
-	o = Encode(normalize(normals - 0.5));
+	o = Encode(normals - 0.5);
 }
 
 float4 motion_estimation(in VSOUT i, sampler sMotionLow, sampler sFeatureCurr, sampler sFeaturePrev, int mip_gcurr, uint BLOCK_SIZE)
