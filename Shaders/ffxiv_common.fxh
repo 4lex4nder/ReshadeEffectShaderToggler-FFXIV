@@ -3,7 +3,8 @@
 namespace FFXIV {
     //static const float MAGIC_WATER_ALPHA = 0.050980390; //for SRGB shim
 	static const float MAGIC_WATER_ALPHA = 0.05195697; //for FFXIV shim
-    static const float MAGIC_WATER_ALPHA2 = MAGIC_WATER_ALPHA + 0.2;
+    //static const float MAGIC_WATER_ALPHA2 = MAGIC_WATER_ALPHA + 0.2; //for SRGB shim
+	static const float MAGIC_WATER_ALPHA2 = 0.25000379; // for FFXIV shim
     static const float MAGIC_ALPHA = MAGIC_WATER_ALPHA - 0.000000002;
 	static const float DECAL_BACKGROUND = 0.00392156863;
     static const float Z_NEAR = 0.1;
@@ -35,7 +36,7 @@ namespace FFXIV {
     {
         float4 normal = tex2Dlod(NormalMap, float4(texcoord, 0, 0));
         float4 decal = tex2Dlod(DecalNormalMap, float4(texcoord, 0, 0));
-        normal.xyz = lerp(normal.xyz, float3(0.5, 0.5, 1), normal.w == 1);
+        //normal.xyz = lerp(normal.xyz, float3(0.5, 0.5, 1), normal.w == 1);
         
         normal.xyz = lerp(normal.xyz, decal.xyz, decal.a > MAGIC_ALPHA);
         return normal.xyz;
@@ -50,6 +51,14 @@ namespace FFXIV {
         normal.xyz = lerp(normal.xyz, decal.xyz, decal.a > MAGIC_ALPHA && decal.a != MAGIC_WATER_ALPHA && decal.a != MAGIC_WATER_ALPHA2);
         return normal.xyz;
     }
+	
+	bool isSky(float2 texcoord)
+	{
+		float4 normal = tex2Dlod(NormalMap, float4(texcoord, 0, 0));
+        float4 decal = tex2Dlod(DecalNormalMap, float4(texcoord, 0, 0));
+		
+		return (decal.a < MAGIC_ALPHA) && (normal.a == 1);
+	}
     
     // Annoying, but didn't see correct z_far in the constant buffers (and it differs between over and inner world)
     float z_far()
