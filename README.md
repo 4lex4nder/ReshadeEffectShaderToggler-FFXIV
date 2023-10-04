@@ -25,6 +25,7 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 Open the ReShade menu and navigate to the `Add-ons` tab. Expand the `Reshade Effect Shader Toggler` addon by click on the arrow on the left. Expand `Options` and set `Constant Buffer copy method` to:
 * `gpu_readback` if you use the optional shaders provided here
 * `none` otherwise
+
 Click "Save All Toggle Groups" on the bottom and restart the game
 
 # Shaders (optional)
