@@ -26,7 +26,7 @@ Open the ReShade menu and navigate to the `Add-ons` tab. Expand the `Reshade Eff
 * `gpu_readback` if you use the optional shaders provided here
 * `none` otherwise
 
-Click "Save All Toggle Groups" on the bottom and restart the game
+Click `Save All Toggle Groups` on the bottom and restart the game
 
 # Shaders (optional)
 TODO: write more things
