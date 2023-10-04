@@ -14,8 +14,18 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 4. Start the game
 
 # Notes
-1. Disable dynamic resolution
-2. Set gamma to exactly 50
+* Disable dynamic resolution
+* Set gamma to exactly 50
+* If you have "FFKeepUI" and/or "FFRestoreUI" effects enabled, disable them
+* Try to avoid having multiples of the same effects hidden somewhere in nested folders in ReShade's Shader directory
+* Set game to DirectX 11 and Settings to Max, except for Anti-Aliasing and Ambient Occlusion, which can be whatever. You can further adjust after making sure everything works to verify nothing breaks on changing the settings
+
+# Troubleshooting
+## Everything is completely messed up, e.g., trees stretch across the horizon
+Open the ReShade menu and navigate to the `Add-ons` tab. Expand the `Reshade Effect Shader Toggler` addon by click on the arrow on the left. Expand `Options` and set `Constant Buffer copy method` to:
+* `gpu_readback` if you use the optional shaders provided here
+* `none` otherwise
+Click "Save All Toggle Groups" on the bottom and restart the game
 
 # Shaders (optional)
 TODO: write more things
