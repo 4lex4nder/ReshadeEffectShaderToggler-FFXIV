@@ -940,7 +940,7 @@ void PS_Out(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out
 	float decal = tex2D(FFXIV::DecalNormalMap, texcoord).a;
 	float4 orgColor = tex2D(ReShade::BackBuffer, texcoord);
 
-	if(decal > FFXIV::DECAL_BACKGROUND && decal != FFXIV::MAGIC_WATER_ALPHA && decal != FFXIV::MAGIC_WATER_ALPHA2)
+	if(decal > FFXIV::MAGIC_ALPHA && decal != FFXIV::MAGIC_WATER_ALPHA && decal != FFXIV::MAGIC_WATER_ALPHA2)
 	{
 		output = orgColor;
 		return;
@@ -954,7 +954,7 @@ void PS_Out_Decals(in float4 position : SV_Position, in float2 texcoord : TEXCOO
 	float decal = tex2D(FFXIV::DecalNormalMap, texcoord).a;
 	float4 orgColor = tex2D(ReShade::BackBuffer, texcoord);
 
-	if(decal <= FFXIV::DECAL_BACKGROUND || decal == FFXIV::MAGIC_WATER_ALPHA || decal == FFXIV::MAGIC_WATER_ALPHA2)
+	if(decal <= FFXIV::MAGIC_ALPHA || decal == FFXIV::MAGIC_WATER_ALPHA || decal == FFXIV::MAGIC_WATER_ALPHA2)
 	{
 		output = orgColor;
 		return;
