@@ -2,7 +2,7 @@
 FFXIV specific ReshadeEffectShaderToggler configuration. 
 
 # Requirements
-* [REST v1.3.3](https://github.com/4lex4nder/ReshadeEffectShaderToggler/releases/tag/v1.3.3)
+* [REST v1.3.4](https://github.com/4lex4nder/ReshadeEffectShaderToggler/releases/tag/v1.3.4)
 * [ReShade 5.9+ with Addon support](https://reshade.me/)
 
 # Instructions
@@ -26,7 +26,7 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 * ~`gpu_readback` if you use the optional shaders provided here~
 * ~`none` otherwise~
 
-Click `Save All Toggle Groups` on the bottom and restart the game
+~Click `Save All Toggle Groups` on the bottom and restart the game~
 
 # Shaders (optional)
 TODO: write more things
