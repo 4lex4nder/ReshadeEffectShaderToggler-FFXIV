@@ -101,7 +101,7 @@ void PSWriteVectors(in VSOUT i, out float2 o : SV_Target0, out float2 p : SV_Tar
     // normals need to be reoriented
     float3 blah = FFXIV::get_normal(i.uv);
     blah.r = 1.0 - blah.r;
-    q = FFXIV::_encode(normalize(blah - 0.5));
+    q = FFXIV::_encode(blah - 0.5);
 }
 
 /*=============================================================================
