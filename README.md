@@ -21,5 +21,8 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 * Try to avoid having multiples of the same effects hidden somewhere in nested folders in ReShade's Shader directory
 * Set game to DirectX 11 and Settings to Max, except for Anti-Aliasing and Ambient Occlusion, which can be whatever. You can further adjust after making sure everything works to verify nothing breaks on changing the settings
 
+# Know issues
+* AutoHDR tools (Windows, SpecialK, ...) may cause ReShade to reload with this in place
+
 # Shaders (optional)
 TODO: write more things
