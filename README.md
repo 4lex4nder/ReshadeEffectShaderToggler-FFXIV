@@ -16,7 +16,7 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 # Notes
 * Disable dynamic resolution
 * Motion vectors through ffxiv_crashpad only available with DLSS and TSCMAA AA modes (make sure Frame Rate Threshold is set to "Always enabled" for DLSS)
-* Set gamma to exactly 50
+* Set gamma to something *not* exactly 50
 * If you have "FFKeepUI" and/or "FFRestoreUI" effects enabled, disable them
 * Try to avoid having multiples of the same effects hidden somewhere in nested folders in ReShade's Shader directory
 * Set game to DirectX 11 and Settings to Max, except for Anti-Aliasing and Ambient Occlusion, which can be whatever. You can further adjust after making sure everything works to verify nothing breaks on changing the settings
