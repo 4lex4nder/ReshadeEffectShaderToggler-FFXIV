@@ -14,8 +14,8 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 4. Start the game
 
 # Notes
-* Disable dynamic resolution
-* Motion vectors through ffxiv_crashpad only available with DLSS and TSCMAA AA modes (make sure Frame Rate Threshold is set to "Always enabled" for DLSS)
+* Disable dynamic resolution or anything that entails running an internal buffer that doesn't match your output resolution. This means running FSR1 at 100% scale and, in case of DLSS, use a mod to turn it into DLAA. Otherwise you're on your own
+* ~~Motion vectors through ffxiv_crashpad only available with DLSS and TSCMAA AA modes (make sure Frame Rate Threshold is set to "Always enabled" for DLSS)~~ Apparently they're always available after all
 * Set gamma to 50 preferably to disable the game's gamma correction
 * If you have "FFKeepUI" and/or "FFRestoreUI" effects enabled, disable them
 * Try to avoid having multiples of the same effects hidden somewhere in nested folders in ReShade's Shader directory
