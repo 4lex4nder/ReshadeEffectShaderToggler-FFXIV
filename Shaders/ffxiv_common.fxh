@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ReShade.fxh"
+
 namespace FFXIV {
     texture texNormals : NORMALS;
     sampler2D<float4> sNormals {
@@ -17,12 +19,20 @@ namespace FFXIV {
         MipFilter = POINT;
     };
     
+    texture texDecalWaterNormals : DECALS_WATER;
+    sampler2D<float4> sDecalWaterNormals {
+        Texture = texDecalWaterNormals; 
+        MagFilter = POINT;
+        MinFilter = POINT;
+        MipFilter = POINT;
+    };
+    
     texture texNativeMotionVectors : MOTIONVECTORS;
     sampler sNativeMotionVectorTex { Texture = texNativeMotionVectors; };
     
     //texture texAlbedo : ALBEDO;
     //sampler sAlbedo { Texture = texAlbedo; };
-    //
+    
     texture texMaterial : MATERIAL;
     sampler sMaterial { Texture = texMaterial; };
     
@@ -73,6 +83,12 @@ namespace FFXIV {
         return normal.rgb + 0.5;
     }
     
+    float get_decal_alpha(float2 texcoord)
+    {
+        float4 tdecal_normal = tex2Dlod(sDecalNormals, float4(texcoord, 0, 0));
+        return tdecal_normal.a;
+    }
+    
     float2 get_motion(float2 texcoord)
     {
         return tex2Dlod(sNativeMotionVectorTex, float4(texcoord, 0, 0)).rg;
@@ -82,9 +98,74 @@ namespace FFXIV {
     //{
     //    return tex2Dlod(sAlbedo, float4(texcoord, 0, 0)).rgb;
     //}
-    //
+    
     float get_roughness(float2 texcoord)
     {
         return tex2Dlod(sMaterial, float4(texcoord, 0, 0)).g;
+    }
+    
+    float linearize_depth(float depth)
+    {
+		const float N = 1.0;
+		depth /= RESHADE_DEPTH_LINEARIZATION_FAR_PLANE - depth * (RESHADE_DEPTH_LINEARIZATION_FAR_PLANE - N);
+
+		return depth;
+    }
+    
+    float delinearize_depth(float depth)
+    {
+		const float N = 1.0;
+		return RESHADE_DEPTH_LINEARIZATION_FAR_PLANE * depth * rcp(RESHADE_DEPTH_LINEARIZATION_FAR_PLANE* depth - depth * N + 1);
+    }
+    
+    float depth_to_view_z(in float depth)
+    {
+        return depth * RESHADE_DEPTH_LINEARIZATION_FAR_PLANE;
+    }
+    
+    float view_z_to_depth(in float z)
+    {
+        return z * rcp(RESHADE_DEPTH_LINEARIZATION_FAR_PLANE);
+    }
+    
+    float3 get_position_from_uv(float2 uv, float depth)
+    {
+        float4 pos = (float4(uv.x, uv.y, depth, 1) * float4(2, -2, 1, 1)) - float4(1, -1, 0, 0);
+        float4 res = mul(matProjInv, pos);
+        res /= res.w;
+        
+        return res.xyz;
+    }
+    
+	float3 get_position_from_world(float3 pos)
+    {
+        float4 uv_pos = mul(matView, float4(pos, 1));
+        uv_pos /= uv_pos.w;
+        
+        return uv_pos.xyz;
+    }
+    
+    float3 get_uv_from_position(float3 pos)
+    {
+        float4 uv_pos = mul(matProj, float4(pos, 1));
+        uv_pos /= uv_pos.w;
+        uv_pos.xyz = uv_pos.xyz * float3(0.5, -0.5, 1) + float3(0.5, 0.5, 0);
+        
+        return uv_pos.xyz;
+    }
+    
+    float3 get_world_position_from_uv(float2 uv, float depth)
+    {
+        float4 pos = (float4(uv.x, uv.y, depth, 1) * float4(2, -2, 1, 1)) - float4(1, -1, 0, 0);
+        float4 res = mul(matViewProjInv, pos);
+        res /= res.w;
+        return res.xyz;
+    }
+    
+    float3 get_uv_from_world_position(float3 pos)
+    {
+        float4 uv_pos = mul(matViewProj, float4(pos, 1));
+        uv_pos /= uv_pos.w;
+        return uv_pos.xyz * float3(0.5, -0.5, 1) + float3(0.5, 0.5, 0);
     }
 }
