@@ -23,3 +23,6 @@ FFXIV specific ReshadeEffectShaderToggler configuration.
 * FFXIV_Crashpad: Drop-in replacement for iMMERSE Launchpad, providing game engine normals and motion vectors instead of approximations
 * FFXIV_XeGTAO: Port of original XeGTAO (modified with visibility bitmasks). Consists of two effects `FFXIV_XeGTAO` and `FFXIV_XeGTAO_Decals`. The former is the main effect, the latter is for decals, Both are required for the effect to work properly
 * ReBlur: Motion blur making use of the game's motion vectors, requires FFXIV_Crashpad to be enabled (before ReBlur in the list)
+
+# Known issues
+* XeGTAO bleeding in main menu
