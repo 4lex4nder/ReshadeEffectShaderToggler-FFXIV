@@ -35,8 +35,8 @@ namespace Deferred {
     texture MotionVectorsTex { Width = BUFFER_WIDTH;   Height = BUFFER_HEIGHT;   Format = RG16F; };
     sampler sMotionVectorsTex { Texture = MotionVectorsTex;  };
     
-    texture NormalsTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RG8; };
-    sampler sNormalsTex { Texture = NormalsTex; };
+    texture NormalsTexV2 { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16; };
+    sampler sNormalsTex { Texture = NormalsTexV2; };
 }
 
 texture texMotionVectors { Width = BUFFER_WIDTH;   Height = BUFFER_HEIGHT;   Format = RG16F; };
@@ -93,7 +93,7 @@ void PSOut(in VSOUT i, out float4 o : SV_Target0)
     o = float4(motionToLgbtq(vec).rgb, 1);
 }
 
-void PSWriteVectors(in VSOUT i, out float2 o : SV_Target0, out float2 p : SV_Target1, out float2 q : SV_Target2)
+void PSWriteVectors(in VSOUT i, out float2 o : SV_Target0, out float2 p : SV_Target1, out float4 q : SV_Target2)
 {
     o = FFXIV::get_motion(i.uv).rg;
     p = o;
@@ -101,7 +101,8 @@ void PSWriteVectors(in VSOUT i, out float2 o : SV_Target0, out float2 p : SV_Tar
     // normals need to be reoriented
     float3 blah = FFXIV::get_normal(i.uv);
     blah.r = 1.0 - blah.r;
-    q = FFXIV::_encode(blah - 0.5);
+    float2 n = FFXIV::_encode(blah - 0.5);
+    q = n.rgrg;
 }
 
 /*=============================================================================
@@ -116,7 +117,7 @@ technique FFXIV_Crashpad
         PixelShader  = PSWriteVectors; 
         RenderTarget0 = texMotionVectors;
         RenderTarget1 = Deferred::MotionVectorsTex;
-        RenderTarget2 = Deferred::NormalsTex;
+        RenderTarget2 = Deferred::NormalsTexV2;
     }
 
     pass 
