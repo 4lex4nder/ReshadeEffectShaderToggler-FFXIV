@@ -2,7 +2,7 @@
 FFXIV specific ReshadeEffectShaderToggler configuration. 
 
 # Requirements
-* [REST v1.3.21](https://github.com/4lex4nder/ReshadeEffectShaderToggler/releases/tag/v1.3.21), note that the ReShade installer may provide a different version. The configuration is only tested against this version
+* [REST v1.3.22](https://github.com/4lex4nder/ReshadeEffectShaderToggler/releases/tag/v1.3.22), note that the ReShade installer may provide a different version. The configuration is only tested against this version
 * [ReShade 6.3+ with Addon support](https://reshade.me/)
 
 # Instructions
